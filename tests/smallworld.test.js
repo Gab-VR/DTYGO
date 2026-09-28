@@ -127,3 +127,21 @@ test("an outer card linked to every bridge is the centre's twin, and the centre 
   assert.equal(q.rep.get(0), 5);
   assert.deepEqual(q.bottom, [3]);                                  // 0 is drawn with the centre
 });
+
+/* ---- overlaps count as crossings ---- */
+import { layoutCrossings } from "../js/smallworld.js";
+
+test("a line through a card counts as a crossing (collinear triangle A, B, C)", () => {
+  const P = new Map([["A", [0, 0]], ["B", [1, 0]], ["C", [2, 0]]]);
+  assert.equal(layoutCrossings(P, [["A", "B"], ["B", "C"], ["A", "C"]]).cross, 1);   // A–C runs through B
+  const bent = new Map([["A", [0, 0]], ["B", [1, 0.5]], ["C", [2, 0]]]);
+  assert.equal(layoutCrossings(bent, [["A", "B"], ["B", "C"], ["A", "C"]]).cross, 0);
+});
+
+test("a chord between opposite inner cards runs through the centre: the order avoids it", () => {
+  // four bridges; a–c are linked. Opposite each other, the chord would cross the centre card.
+  const r = radialOrder(["a", "b", "c", "d"], [], [["a", "c"]], 1.85);
+  assert.equal(r.cross, 0);
+  const d = Math.abs(Math.atan2(Math.sin(r.ang1.get("a") - r.ang1.get("c")), Math.cos(r.ang1.get("a") - r.ang1.get("c"))));
+  assert.ok(d < Math.PI - 0.1, "a and c must not be opposite");
+});

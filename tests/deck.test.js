@@ -126,3 +126,12 @@ test("removing a custom category untags cards and clears it from Hands slots; bu
   assert.deepEqual(d.probs.hands[0].slice(0, 2), [[d.cats[0].id], []]);
   assert.ok(!d.cats.includes(k));
 });
+
+import { moveCategory } from "../js/deck.js";
+test("categories can be reordered", () => {
+  const ids = d.cats.map(k => k.id), names = () => d.cats.map(k => k.name);
+  moveCategory(d, ids[5], ids[0]);                              // Brick before Starter
+  assert.deepEqual(names(), ["Brick", "Starter", "Half Starter", "Extender", "Hand-trap", "Interaction"]);
+  moveCategory(d, ids[0], null);                                // Starter to the end
+  assert.deepEqual(names(), ["Brick", "Half Starter", "Extender", "Hand-trap", "Interaction", "Starter"]);
+});

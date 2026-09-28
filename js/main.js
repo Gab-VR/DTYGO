@@ -9,7 +9,6 @@ import { DECK_VIEWS, renderBuild, renderResults, SEARCH_SORTS } from "./tabs/bui
 import { renderFormat } from "./tabs/format.js";
 import { renderHands } from "./tabs/hands.js";
 import { renderSW } from "./tabs/smallworld.js";
-import { renderStats } from "./tabs/stats.js";
 import { refreshImageStatus, registerTab, renderHeader, renderTab, setTab } from "./ui.js";
 import { $, BUILD, h, on, toast } from "./util.js";
 import { importDeck, parseYdk } from "./ydk.js";
@@ -20,7 +19,6 @@ window.__deckbuilderStarted = true;   // index.html shows a help message if this
 // Each tab draws itself; ui.js only knows them through this registry.
 registerTab("build", renderBuild);
 registerTab("hands", renderHands);
-registerTab("stats", renderStats);
 registerTab("sw", renderSW);
 registerTab("format", renderFormat);
 
@@ -38,7 +36,11 @@ function showFatal(msg) {
     h("b", {}, "A deckbuilder hit an error: "), msg, h("div", { style: { fontSize: "12px", opacity: .8, marginTop: "4px" } }, `Build ${BUILD}. Press F12 and open the Console tab for details.`)));
 }
 
-window.addEventListener("error", e => showFatal(e.message || String(e.error)));
+window.addEventListener("error", e => {
+  const msg = e.message || String(e.error);
+  if (/ResizeObserver loop/.test(msg)) return;                       // a harmless browser notice, not an app error
+  showFatal(msg);
+});
 window.addEventListener("unhandledrejection", e => showFatal((e.reason && (e.reason.message || e.reason)) + ""));
 
 /* Brings data saved by older versions up to date. Each step is safe to run on every load. */
@@ -54,7 +56,7 @@ function upgradeSaved() {
   if (!DECK_VIEWS.some(([v]) => v === ui.deckView)) ui.deckView = ui.deckSort === "cats" ? "cats" : "table";   // old Sort menu
   if (!ui.uiV || ui.uiV < 2) { ui.textSearch = true; ui.uiV = 2; }                  // "Match card text" became the default
   if (ui.img === "local") ui.img = "path"; else if (!["off", "folder", "path"].includes(ui.img)) ui.img = "off";
-  for (const k of ["deckSort", "xinfoOpen", "art", "dealSize"]) delete ui[k];       // settings of removed features
+  for (const k of ["deckSort", "xinfoOpen", "art", "dealSize", "catWidth"]) delete ui[k];   // settings of removed features
 }
 
 async function init() {
@@ -77,7 +79,7 @@ async function init() {
   document.addEventListener("drop", async e => { const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f && /\.ydk$/i.test(f.name)) { e.preventDefault(); const { d, unknown } = parseYdk(await f.text()); importDeck(d, unknown, f.name.replace(/\.ydk$/i, "")); } });
   await idb.open();
   await loadDB();
-  renderHeader(); setTab(cur.tab === "probs" ? "hands" : cur.tab || "build");   // app first; pictures load afterwards
+  renderHeader(); setTab(cur.tab === "probs" ? "hands" : cur.tab === "stats" || !cur.tab ? "build" : cur.tab);   // app first; pictures load afterwards
   // Re-reading a big image folder can take a while (thousands of files), so it runs in the background.
   // Always redraw afterwards: the folder may need a "Reconnect" click, and that button must appear.
   restoreFolder().then(() => { if (IMGS.urls.size) probePath(); renderResults(); renderTab(); })
@@ -92,6 +94,6 @@ init().catch(e => { console.error(e); showFatal(e.message || String(e)); });
 // Open the app with ?debug in the address to use every module's functions from the browser console.
 if (new URLSearchParams(location.search).has("debug")) {
   const mods = ["util", "store", "cards", "legality", "deck", "ydk", "prob", "smallworld", "images", "backup", "ui",
-    "tabs/build", "tabs/hands", "tabs/stats", "tabs/smallworld", "tabs/format"];
+    "tabs/build", "tabs/hands", "tabs/smallworld", "tabs/format"];
   Promise.all(mods.map(m => import(`./${m}.js`))).then(ms => { ms.forEach(x => Object.assign(window, x)); console.info("Debug: module functions are on window."); });
 }

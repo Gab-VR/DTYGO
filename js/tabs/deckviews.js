@@ -4,7 +4,7 @@
 // The third view, Categories, lives in build.js.
 import { add, alphaCopies, ensureCopyOrder, ensureOrder, move, moveCopies, SECTIONS } from "../deck.js";
 import { card, changed, count, deck, S, save } from "../store.js";
-import { cardIsBad, deckCardEvents, dragData, dropAfter, dropData, dropZone, hideDropLine, mini, showDropLine } from "../ui.js";
+import { cardIsBad, deckCardEvents, dragData, dropAfter, dropData, dropZone, flipKey, hideDropLine, mini, showDropLine } from "../ui.js";
 import { KDE_FILE, MAIN_ROWS, SIDE_ROWS, SHEET_FIELDS, sheetData, fillKde, kdeTemplate, setKdeTemplate } from "../decklist.js";
 import { $$, download, h, toast } from "../util.js";
 
@@ -89,15 +89,36 @@ function tableEvents(c, sec, pos) {
 function tableSection(key, label, info = "") {
   const d = deck(), list = tableList(d, key);
   const mat = h("div", { class: "mat" + (list.length ? "" : " mat-empty") },
-    list.length ? list.map((id, i) => { const c = card(id); return c ? mini(c, key, tableEvents(c, key, i)) : null; })
+    list.length ? list.map((id, i) => {
+      const c = card(id); if (!c) return null;
+      const copy = list.slice(0, i).filter(x => x === id).length;          // which copy this is, so each one slides on its own
+      return flipKey(mini(c, key, tableEvents(c, key, i)), key, id, copy);
+    })
       : null);
+  // Over the gaps between cards the pointer is on the mat itself: use the nearest card in that
+  // row (left or right half), and the end of the deck only past the last card. The drop uses the
+  // same slot the line shows.
+  let slot = list.length;
+  const nearest = e => {
+    const minis = [...mat.querySelectorAll(".mini")]; if (!minis.length) return null;
+    const rects = minis.map(m => m.getBoundingClientRect());
+    let row = rects.map((r, i) => i).filter(i => e.clientY >= rects[i].top - 3 && e.clientY <= rects[i].bottom + 3);
+    if (!row.length) {                                                  // above or below the cards: the closest row
+      const lastTop = rects[rects.length - 1].top;
+      row = rects.map((r, i) => i).filter(i => e.clientY < rects[0].top ? rects[i].top === rects[0].top : rects[i].top === lastTop);
+    }
+    const i = row.reduce((best, k) => Math.abs(e.clientX - (rects[k].left + rects[k].right) / 2) < Math.abs(e.clientX - (rects[best].left + rects[best].right) / 2) ? k : best, row[0]);
+    return { el: minis[i], i, after: e.clientX > (rects[i].left + rects[i].right) / 2 };
+  };
   mat.addEventListener("dragover", e => {
     e.preventDefault(); mat.classList.add("drop");
-    const last = mat.querySelector(".mini:last-of-type");                 // empty space: the card goes last
-    if (e.target === mat) last ? showDropLine(last, true) : hideDropLine();
+    if (e.target !== mat) return;                                       // over a card: the card shows the line
+    const n = nearest(e);
+    if (!n) { hideDropLine(); slot = list.length; return; }
+    slot = n.i + (n.after ? 1 : 0); showDropLine(n.el, n.after);
   });
   mat.addEventListener("dragleave", e => { if (!mat.contains(e.relatedTarget)) mat.classList.remove("drop"); });
-  mat.addEventListener("drop", e => { e.preventDefault(); mat.classList.remove("drop"); tableDrop(key, dropData(e), list.length); });
+  mat.addEventListener("drop", e => { e.preventDefault(); mat.classList.remove("drop"); hideDropLine(); tableDrop(key, dropData(e), e.target === mat ? slot : list.length); });
   return h("div", { class: "section" }, sectionHeader(label, key, info), mat);
 }
 

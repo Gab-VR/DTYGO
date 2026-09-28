@@ -104,6 +104,15 @@ function removeCategory(d, id) {
   for (const hand of d.probs?.hands || []) for (const slot of hand) { const i = slot.indexOf(id); if (i >= 0) slot.splice(i, 1); }
   return true;
 }
+// Moves category `id` to just before category `before` (or to the end when before is null).
+// The order is used everywhere categories are listed, and decides which box a card with
+// several categories appears in (its first one).
+function moveCategory(d, id, before) {
+  const k = d.cats.find(x => x.id === id); if (!k || id === before) return;
+  const rest = d.cats.filter(x => x !== k), i = before == null ? -1 : rest.findIndex(x => x.id === before);
+  i >= 0 ? rest.splice(i, 0, k) : rest.push(k);
+  d.cats = rest;
+}
 // How many Main Deck copies carry the category.
 function categoryCopies(d, id) { return Object.entries(d.main).reduce((a, [cid, n]) => a + ((d.tags[cid] || []).includes(id) ? n : 0), 0); }
 // A card's box in the Categories view: the first of its categories in list order.
@@ -149,4 +158,4 @@ function alphaCopies(d, sec) {
     .flatMap(([c, n]) => Array(n).fill(c.id));
 }
 
-export { categoryCopies, removeCategory, CATS_VERSION, migrateCats, add, alphaCopies, ensureCopyOrder, moveCopies, addCategory, customCats, DEFAULT_CATS, ensureOrder, MAX_CUSTOM_CATS, move, newDeck, placeInOrder, primaryCat, reorder, SECTIONS };
+export { categoryCopies, moveCategory, removeCategory, CATS_VERSION, migrateCats, add, alphaCopies, ensureCopyOrder, moveCopies, addCategory, customCats, DEFAULT_CATS, ensureOrder, MAX_CUSTOM_CATS, move, newDeck, placeInOrder, primaryCat, reorder, SECTIONS };

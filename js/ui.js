@@ -179,6 +179,36 @@ function dropZone(el, sec) {
   return el;
 }
 const cardIsBad = c => totalCopies(deck(), c.id) > limitOf(c) || !inPool(c);
+/* Cards slide to their new place when the List is redrawn (the FLIP technique): note every
+   card's position before, then animate each from its old spot to its new one. Cards carry a
+   data-flip key (section, card, and copy number); a card that changed section is matched by
+   card instead. Skipped when the system asks for reduced motion. */
+function flipSnapshot(root) {
+  const at = new Map(), byCard = new Map();
+  if (!root) return { at, byCard };
+  for (const el of root.querySelectorAll("[data-flip]")) {
+    const r = el.getBoundingClientRect(); at.set(el.dataset.flip, r);
+    (byCard.get(el.dataset.card) || byCard.set(el.dataset.card, []).get(el.dataset.card)).push([el.dataset.flip, r]);
+  }
+  return { at, byCard };
+}
+function flipPlay(root, before) {
+  if (!root || !before.at.size || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const now = [...root.querySelectorAll("[data-flip]")], kept = new Set(now.map(el => el.dataset.flip));
+  for (const el of now) {
+    let from = before.at.get(el.dataset.flip);
+    if (!from) {                                                        // it changed section: use a vanished copy of the same card
+      const spare = (before.byCard.get(el.dataset.card) || []).find(([k]) => !kept.has(k));
+      if (!spare) continue;
+      kept.add(spare[0]); from = spare[1];
+    }
+    const to = el.getBoundingClientRect(), dx = from.left - to.left, dy = from.top - to.top;
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5)
+      el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 240, easing: "cubic-bezier(.2,.7,.2,1)" });
+  }
+}
+const flipKey = (el, sec, id, copy = 0) => { el.dataset.flip = `${sec}:${id}:${copy}`; el.dataset.card = String(id); return el; };
+
 /* Card as a picture with its name on a tag above it (Categories view).
    Extra copies stack behind the picture; long names scroll into view after a moment's hover. */
 function tile(c, n, sec, boxCat) {
@@ -192,7 +222,7 @@ function tile(c, n, sec, boxCat) {
       n > 1 ? h("span", { class: "cnt" }, "×" + n) : null,
       p ? h("span", { class: "bub pts on-pic", title: `${f.name} points` }, `${p} pts`) : null));
   marquee(el, tag, label);
-  return el;
+  return flipKey(el, sec, c.id);
 }
 // Scrolls a clipped label to show its end while `host` is hovered (after a short pause).
 function marquee(host, box, label) {
@@ -226,4 +256,4 @@ function cardPicker(onPick, filter = () => true, placeholder = "Search a card") 
   return h("div", { class: "sugg" }, inp, menu);
 }
 
-export { bubbles, cardIsBad, cardPicker, deckCardEvents, dragData, dropAfter, dropData, dropZone, hideDropLine, imageSelect, imageState, marquee, mini, pictureNotice, refreshImageStatus, registerTab, renderHeader, renderSplash, renderTab, setTab, showDropLine, STACK_STEP, stackStyle, TABS, tile };
+export { bubbles, cardIsBad, cardPicker, deckCardEvents, dragData, dropAfter, dropData, dropZone, flipKey, flipPlay, flipSnapshot, hideDropLine, imageSelect, imageState, marquee, mini, pictureNotice, refreshImageStatus, registerTab, renderHeader, renderSplash, renderTab, setTab, showDropLine, STACK_STEP, stackStyle, TABS, tile };

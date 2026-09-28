@@ -1,10 +1,10 @@
 // tabs/build.js
 import { cardKind, cardLevel, cardStats, frameColor, isExtra, isLink, isMonster, isSpell, isTrap, kindRank, levelOf, releaseDate, statOk, subLine } from "../cards.js";
-import { add, addCategory, customCats, MAX_CUSTOM_CATS, move, primaryCat, removeCategory } from "../deck.js";
+import { add, addCategory, customCats, MAX_CUSTOM_CATS, move, moveCategory, primaryCat, removeCategory } from "../deck.js";
 import { artPos, hideBroken, IMG_ART, IMG_FULL, imgOn } from "../images.js";
 import { inPool, limitLabel, limitOf, pointsOf } from "../legality.js";
 import { card, changed, deck, fmt, S, save } from "../store.js";
-import { bubbles, dragData, dropData, dropZone, pictureNotice, tile } from "../ui.js";
+import { bubbles, dragData, dropAfter, dropData, dropZone, flipKey, flipPlay, flipSnapshot, hideDropLine, pictureNotice, showDropLine, tile } from "../ui.js";
 import { orderedItems, sectionHeader, setTableOrder, sheetView, TABLE_ORDERS, tableSection } from "./deckviews.js";
 import { $, $$, h, toast } from "../util.js";
 
@@ -40,7 +40,7 @@ function resultRow(c) {
   const row = h("div", { class: "res" + (S.sel === c.id ? " sel" : ""), draggable: true, tabindex: 0,
     title: c.name,
     ondragstart: e => dragData(e, c.id, null),
-    onclick: select,
+    onclick: e => { if (e.shiftKey) add(c.id, null); else select(); },   // Shift-click adds, like right-click
     oncontextmenu: e => { e.preventDefault(); add(c.id, null); },
     onmousedown: e => { if (e.button === 1) e.preventDefault(); },          // stop the middle-button autoscroll
     onauxclick: e => { if (e.button === 1) { e.preventDefault(); add(c.id, "side"); } },
@@ -91,6 +91,28 @@ function dropOnCategory(data, key, k) {
 }
 /* Categories view: Main Deck cards in one box per category (drag between boxes to recategorize);
    the Extra and Side Deck as tiles in the deck's own order. */
+// Moving a category: follow the pointer, show the yellow line above or below the box under it,
+// and move the category there on release. Escape cancels.
+function startCategoryDrag(e, d, k) {
+  e.preventDefault();
+  const src = e.currentTarget; src.classList.add("moving"); document.body.classList.add("moving-cat");
+  let target = null, after = false;
+  const move = ev => {
+    const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(".catbox[data-cat]");
+    target = el && el.dataset.cat !== k.id ? el : null;
+    if (!target) { hideDropLine(); return; }
+    after = dropAfter(ev, target, true); showDropLine(target, after, true);
+  };
+  const end = ev => {
+    removeEventListener("pointermove", move); removeEventListener("pointerup", end); removeEventListener("keydown", esc);
+    src.classList.remove("moving"); document.body.classList.remove("moving-cat"); hideDropLine();
+    if (!ev || !target) return;
+    const order = d.cats.filter(x => x.id !== k.id), i = order.findIndex(x => x.id === target.dataset.cat);
+    moveCategory(d, k.id, after ? (order[i + 1] ? order[i + 1].id : null) : target.dataset.cat); changed();
+  };
+  const esc = ev => { if (ev.key === "Escape") { target = null; end(null); } };
+  addEventListener("pointermove", move); addEventListener("pointerup", end); addEventListener("keydown", esc);
+}
 // "+ New category" at the end of the category boxes (up to MAX_CUSTOM_CATS of your own).
 function newCategoryBox(d) {
   const full = customCats(d).length >= MAX_CUSTOM_CATS;
@@ -111,6 +133,10 @@ function sectionEl(key, label, extraInfo) {
     for (const it of items) { const k = primaryCat(d, it[0].id); k ? groups.get(k.id).push(it) : none.push(it); }
     const box = (k, its) => {
       const el = h("div", { class: "catbox" + (its.length ? "" : " empty-box") + (k ? "" : " uncat"), style: { "--c": k ? k.color : "#8e9197" },
+        // Shift + drag a box to move the category (pointer-based: a native drag won't start from
+        // text while Shift is held). A plain drag inside the box still moves cards.
+        "data-cat": k ? k.id : null,
+        onpointerdown: e => { if (k && e.shiftKey && e.button === 0 && !e.target.closest(".ctile, button")) startCategoryDrag(e, d, k); },
         ondragover: e => { e.preventDefault(); e.stopPropagation(); el.classList.add("drop"); },
         ondragleave: e => { if (!el.contains(e.relatedTarget)) el.classList.remove("drop"); },
         ondrop: e => { e.preventDefault(); e.stopPropagation(); el.classList.remove("drop"); dropOnCategory(dropData(e), key, k); },
@@ -123,11 +149,12 @@ function sectionEl(key, label, extraInfo) {
       return el;
     };
     const full = d.cats.filter(k => groups.get(k.id).length), empty = d.cats.filter(k => !groups.get(k.id).length);
-    // Filled boxes hang in two independent strips (first half left, rest right), each box right
-    // under the previous one, so a tall category never leaves a gap beside it. Uncategorised
-    // cards get the full width below; empty categories stay compact at the bottom.
-    const boxes = full.map(k => box(k, groups.get(k.id))), half = Math.ceil(boxes.length / 2);
-    body = [h("div", { class: "catcols" }, h("div", { class: "catcol" }, boxes.slice(0, half)), h("div", { class: "catcol" }, boxes.slice(half))),
+    // Filled boxes hang in as many columns as the Columns ruler says, in category order top to
+    // bottom and then across; each box sits right under the previous one, so a tall
+    // category never leaves a gap. Uncategorised cards get the full width below; empty
+    // categories stay compact at the bottom.
+    const boxes = full.map(k => flipKey(box(k, groups.get(k.id)), "cat", k.id));
+    body = [h("div", { class: "catcols", style: { "--catn": S.ui.catCols || 2 } }, boxes),
       none.length ? box(null, none) : null,
       h("div", { class: "empty-boxes" }, empty.map(k => box(k, [])), none.length ? null : box(null, []), newCategoryBox(d))];
   }
@@ -147,8 +174,8 @@ function setDirButton(b) {
 }
 const DECK_VIEWS = [
   ["table", "Table", "Every card as a full miniature"],
-  ["sheet", "Sheet", "Decklist form you can fill in and export as a PDF"],
-  ["cats", "Categories", "Main Deck grouped by category"]
+  ["cats", "Categories", "Main Deck grouped by category"],
+  ["sheet", "Sheet", "Decklist form you can fill in and export as a PDF"]
 ];
 function deckView() {
   const view = S.ui.deckView;
@@ -156,6 +183,7 @@ function deckView() {
   const section = view === "cats" ? sectionEl : tableSection;
   return [section("main", "Main Deck", mainInfo()), section("extra", "Extra Deck"), section("side", "Side Deck")];
 }
+let lastView = null;
 function renderBuild() {
   const root = $("#tab-build");
   const keepFocus = document.activeElement && document.activeElement.id;
@@ -189,6 +217,9 @@ function renderBuild() {
     setDirButton($("#searchDir")); renderResults();
   }
   // deck area
+  // Cards slide to their new spots after a change; not when switching views (they change shape).
+  const sameView = lastView === S.ui.deckView; lastView = S.ui.deckView;
+  const before = sameView ? flipSnapshot($("#deckArea", root)) : flipSnapshot(null);
   $("#deckArea", root).replaceChildren(
     h("div", { class: "deckbar" },
       h("div", { class: "seg", role: "group", "aria-label": "Deck view" }, DECK_VIEWS.map(([v, l]) =>
@@ -196,22 +227,29 @@ function renderBuild() {
       S.ui.deckView === "table" ? h("div", { class: "seg", role: "group", "aria-label": "Table order",
         title: S.ui.tableOrder === "custom" ? "Shift-drag moves every copy" : null },
         TABLE_ORDERS.map(([v, l]) => h("button", { "aria-pressed": (S.ui.tableOrder || "alpha") === v, onclick: () => setTableOrder(v) }, l))) : null,
+      S.ui.deckView === "cats" ? h("label", { class: "row cat-width" }, h("span", { class: "dim imgnote" }, "Columns"),
+        h("input", { type: "range", class: "ruler", min: 1, max: 4, step: 1, value: S.ui.catCols || 2, "aria-label": "Category columns",
+          oninput: e => { S.ui.catCols = +e.target.value; $(".catcols")?.style.setProperty("--catn", S.ui.catCols); $(".ruler-n").textContent = S.ui.catCols; },
+          onchange: () => save() }),
+        h("span", { class: "dim imgnote ruler-n" }, S.ui.catCols || 2)) : null,
       pictureNotice(),
       h("span", { class: "grow" }),
       h("button", { class: "toggle", "aria-pressed": !!S.ui.overrideLimit,
         onclick: () => { S.ui.overrideLimit = !S.ui.overrideLimit; save(); renderBuild(); toast(S.ui.overrideLimit ? "Card limits overridden" : "Card limits enforced"); } }, "Override card limit")),
     ...deckView(),);
+  flipPlay($("#deckArea", root), before);
   renderDetail();
   if (keepFocus === "q") $("#q").focus();
 }
 // Collapsed whenever a different card is shown; stays open while you look at the card you opened it on.
+// Archetype, release dates, then the picture ID(s) (one per artwork), then printings.
 let xinfoOpenFor = null;
 function extraInfo(c) {
   const rows = [];
   if (c.arch) rows.push(["Archetype", c.arch]);
   if (c.tcg) rows.push(["TCG release", c.tcg]);
   if (c.ocg) rows.push(["OCG release", c.ocg]);
-  if (c.alts && c.alts.length) rows.push(["Artworks", String(c.alts.length + 1)]);
+  rows.push([c.alts && c.alts.length ? "Picture IDs" : "Picture ID", [c.id, ...(c.alts || [])].join(", ")]);
   let prints;
   if (!S.setNames) prints = h("p", { class: "dim" }, "Printings arrive with the next data update.");
   else if (!c.sets || !c.sets.length) prints = h("p", { class: "dim" }, "No printings.");
