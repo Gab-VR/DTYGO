@@ -42,8 +42,7 @@ function renderSplash(root) {
   } });
   root.replaceChildren(h("div", { class: "splash panel" },
     h("h2", {}, "No card data yet"),
-    h("p", {}, "A deckbuilder reads its card list from data/cards.json next to this page. That file is built by the update script, so run it once (see the README)."),
-    h("p", { class: "dim" }, "Opened this page straight from your disk? Browsers don't let file:// pages read neighbouring files, so either serve the folder locally or load cards.json by hand."),
+
     h("div", { class: "row" },
       h("button", { class: "primary", onclick: () => file.click() }, "Load cards.json"),
       h("button", { onclick: async () => { st.textContent = "Checking…"; try { const r = await syncData(m => st.textContent = m); if (r.updated) { toast(`Loaded ${S.meta.n} cards`); changed(); } else st.textContent = `data/meta.json isn't reachable (${r.err || "no data"}).`; } catch (err) { st.textContent = err.message; } } }, "Try again")),
@@ -58,18 +57,12 @@ function imageState() {
   }
   if (IMGS.reading) return { text: `Reading picture folder… ${IMGS.reading}`, cls: "dim" };
   if (!canRememberFolder() && !IMGS.urls.size) return { text: location.protocol === "file:"
-      ? "Opened as a file, so the folder must be chosen each visit. Serve the app on localhost to have it remembered (see README)."
-      : `On ${location.origin} the folder must be chosen each visit. Open the app at http://localhost:${location.port || 80} to have it remembered.`, cls: "dim", btn: "Choose image folder" };
-  if (IMGS.needsPermission) return { text: "Edge needs your permission to read the picture folder again.", cls: "warn", btn: "Reconnect image folder" };
+      ? "Opened as a file: choose the folder each visit."
+      : "On this address the folder must be chosen each visit.", cls: "dim", btn: "Choose image folder" };
+  if (IMGS.needsPermission) return { text: "Needs permission again.", cls: "warn", btn: "Reconnect image folder" };
   if (!IMGS.urls.size) return IMGS.diag ? { text: folderReport(), cls: "warn", btn: "Choose image folder" } : { text: "No picture folder chosen yet.", cls: "warn", btn: "Choose image folder" };
   if (IMGS.pathMisses) return { text: folderReport(), cls: "warn", btn: "Choose image folder" };
   return { text: folderReport(), cls: "dim" };
-}
-function imageStatus() {
-  const st = imageState();
-  return h("span", { class: "row img-status", id: "imgStatus" },
-    st.btn ? h("button", { class: "small primary", onclick: connectFolder }, st.btn) : null,
-    h("span", { class: st.cls + " imgnote" }, st.text));
 }
 /* The List only mentions pictures when something needs doing: a button to connect the
    folder, "Loading pictures…", or a quiet "Outdated database" when cards in this deck have
@@ -78,7 +71,7 @@ function pictureNotice() {
   const wrap = (...kids) => h("span", { class: "row pic-notice", id: "imgStatus" }, ...kids);
   if (S.ui.img === "off") return wrap();
   if (S.ui.img === "path") return IMGS.pathMisses && !IMGS.pathHits
-    ? wrap(h("span", { class: "quiet-warn", title: `No pictures found at ${S.ui.imgTpl}. Change it in Format > Card images.` }, "⚠ Pictures not found")) : wrap();
+    ? wrap(h("span", { class: "quiet-warn", title: `No pictures at ${S.ui.imgTpl}` }, "⚠ Pictures not found")) : wrap();
   if (IMGS.reading) return wrap(h("span", { class: "dim imgnote" }, "Loading pictures…"));
   if (!IMGS.urls.size) return wrap(h("button", { class: "small", title: imageState().text, onclick: connectFolder },
     IMGS.needsPermission ? "Reconnect pictures" : "Choose picture folder"));
@@ -87,10 +80,7 @@ function pictureNotice() {
     ? wrap(h("span", { class: "quiet-warn", title: `${missing.length} card${missing.length === 1 ? "" : "s"} in this deck ${missing.length === 1 ? "has" : "have"} no picture in your folder: ${missing.slice(0, 8).map(c => c.name).join(", ")}${missing.length > 8 ? "…" : ""}.\nRun scripts/download-images.mjs to add the missing ones.` }, "⚠ Outdated database"))
     : wrap();
 }
-function refreshImageStatus() {
-  const el = $("#imgStatus"); if (!el) return;
-  el.replaceWith(el.classList.contains("pic-notice") ? pictureNotice() : imageStatus());
-}
+function refreshImageStatus() { const el = $("#imgStatus"); if (el) el.replaceWith(pictureNotice()); }
 function imageSelect() {
   return h("select", { "aria-label": "Card images", onchange: e => chooseImages(e.target.value) },
     [["off", "Off"], ["folder", "Image folder"], ["path", "Image URL path"]].map(([v, l]) => h("option", { value: v, selected: S.ui.img === v }, l)));
@@ -102,7 +92,6 @@ function dragData(e, id, from, cat, extra = {}) {
   dragging = Object.assign({ id, from, cat }, extra);
   e.dataTransfer.setData("text/plain", JSON.stringify(dragging)); e.dataTransfer.effectAllowed = "copyMove";
 }
-const isDragging = () => dragging;
 
 // The yellow line marking where a dragged card will land: at the left or right edge of a
 // card in a grid, or above or below a row in a list.
@@ -137,7 +126,7 @@ function bubbles(c, f = fmt()) {
 const STACK_STEP = 8, STACK_MAX = 4;   // at most 4 cards drawn behind; the badge gives the exact count
 function stackStyle(n, bad) {
   const layers = Math.min(n, STACK_MAX + 1) - 1, sh = [];
-  if (bad) sh.push("inset 0 0 0 2px var(--bad)");
+  if (bad) sh.push("inset 0 0 0 2px var(--red)");
   for (let k = 1; k <= layers; k++) {
     const y = k * STACK_STEP + k, shrink = k;                         // +k offsets the negative spread
     const tone = `color-mix(in srgb, var(--fc) ${88 - 12 * k}%, #000)`;
@@ -154,7 +143,7 @@ function deckCardEvents(c, sec, boxCat) {
   // handles that); from the same box, or anywhere else, it's placed next to this card.
   const placesHere = el => !el.closest(".catbox") || (dragging && dragging.from === sec && dragging.cat === (boxCat ? boxCat.id : null));
   return {
-    draggable: true, tabindex: 0, title: `${c.name}\nClick to view. Right-click removes one copy. Drag to reorder.`,
+    draggable: true, tabindex: 0, title: c.name,
     oncontextmenu: e => { e.preventDefault(); add(c.id, sec, -1); },
     ondragstart: e => dragData(e, c.id, sec, boxCat === undefined ? undefined : boxCat ? boxCat.id : null),
     ondragover: e => {
@@ -190,7 +179,7 @@ function dropZone(el, sec) {
   return el;
 }
 const cardIsBad = c => totalCopies(deck(), c.id) > limitOf(c) || !inPool(c);
-/* Card as a picture with its name on a tag above it (Categories view, test hands).
+/* Card as a picture with its name on a tag above it (Categories view).
    Extra copies stack behind the picture; long names scroll into view after a moment's hover. */
 function tile(c, n, sec, boxCat) {
   const f = fmt(), bad = cardIsBad(c), pic = imgOn() && IMG_FULL(c.id), p = f.points ? pointsOf(c) : 0;
@@ -225,13 +214,8 @@ function mini(c, sec, events = deckCardEvents(c, sec)) {
     pic ? h("img", { src: pic, alt: c.name, draggable: false, loading: "lazy", onerror: e => { e.target.closest(".mini").classList.remove("pic"); e.target.remove(); } }) : null,
     h("span", { class: "mini-name" }, c.name));
 }
-function catChips(id, after) {
-  const d = deck(), cur = d.tags[id] || [];
-  return h("div", { class: "chips" }, d.cats.map(k => h("button", { class: "chip" + (cur.includes(k.id) ? " on" : ""), style: { "--c": k.color }, "aria-pressed": cur.includes(k.id),
-    onclick: () => { const t = new Set(d.tags[id] || []); t.has(k.id) ? t.delete(k.id) : t.add(k.id); d.tags[id] = [...t]; save(); after ? after() : renderTab(); } }, k.name)));
-}
-function cardPicker(onPick, filter = () => true) {
-  const inp = h("input", { placeholder: "Search a card", style: { width: "100%" }, "aria-label": "Search a card" }), menu = h("div", { class: "menu", hidden: true });
+function cardPicker(onPick, filter = () => true, placeholder = "Search a card") {
+  const inp = h("input", { placeholder, style: { width: "100%" }, "aria-label": placeholder }), menu = h("div", { class: "menu", hidden: true });
   inp.addEventListener("input", () => {
     const q = inp.value.toLowerCase().trim(); if (q.length < 2) { menu.hidden = true; return; }
     const hits = []; for (const c of S.list) { if (c.name.toLowerCase().includes(q) && filter(c)) { hits.push(c); if (hits.length >= 12) break; } }
@@ -242,4 +226,4 @@ function cardPicker(onPick, filter = () => true) {
   return h("div", { class: "sugg" }, inp, menu);
 }
 
-export { pictureNotice, bubbles, cardIsBad, dropAfter, hideDropLine, isDragging, marquee, showDropLine, cardPicker, catChips, deckCardEvents, dragData, dropData, dropZone, mini, imageSelect, imageState, imageStatus, refreshImageStatus, registerTab, renderHeader, renderSplash, renderTab, setTab, STACK_STEP, stackStyle, TABS, tile };
+export { bubbles, cardIsBad, cardPicker, deckCardEvents, dragData, dropAfter, dropData, dropZone, hideDropLine, imageSelect, imageState, marquee, mini, pictureNotice, refreshImageStatus, registerTab, renderHeader, renderSplash, renderTab, setTab, showDropLine, STACK_STEP, stackStyle, TABS, tile };

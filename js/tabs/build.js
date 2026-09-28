@@ -1,11 +1,11 @@
 // tabs/build.js
-import { cardKind, cardLevel, cardStats, frameColor, isExtra, isLink, isMonster, isSpell, isTrap, kindRank, levelOf, releaseDate, sortKey, statOk, subLine } from "../cards.js";
+import { cardKind, cardLevel, cardStats, frameColor, isExtra, isLink, isMonster, isSpell, isTrap, kindRank, levelOf, releaseDate, statOk, subLine } from "../cards.js";
 import { add, addCategory, customCats, MAX_CUSTOM_CATS, move, primaryCat, removeCategory } from "../deck.js";
 import { artPos, hideBroken, IMG_ART, IMG_FULL, imgOn } from "../images.js";
 import { inPool, limitLabel, limitOf, pointsOf } from "../legality.js";
 import { card, changed, deck, fmt, S, save } from "../store.js";
 import { bubbles, dragData, dropData, dropZone, pictureNotice, tile } from "../ui.js";
-import { EMPTY_HINT, orderedItems, sectionHeader, setTableOrder, sheetView, TABLE_ORDERS, tableSection } from "./deckviews.js";
+import { orderedItems, sectionHeader, setTableOrder, sheetView, TABLE_ORDERS, tableSection } from "./deckviews.js";
 import { $, $$, h, toast } from "../util.js";
 
 /* ================= build tab ================= */
@@ -38,7 +38,7 @@ function resultRow(c) {
   // Left click only shows the card; right click adds to Main/Extra, middle click adds to Side.
   const select = () => { S.sel = c.id; $$(".res.sel").forEach(r => r.classList.remove("sel")); row.classList.add("sel"); renderDetail(); };
   const row = h("div", { class: "res" + (S.sel === c.id ? " sel" : ""), draggable: true, tabindex: 0,
-    title: `${c.name}\nClick to view. Right-click adds to the ${isExtra(c) ? "Extra" : "Main"} Deck, middle-click adds to the Side Deck, or drag it.`,
+    title: c.name,
     ondragstart: e => dragData(e, c.id, null),
     onclick: select,
     oncontextmenu: e => { e.preventDefault(); add(c.id, null); },
@@ -51,7 +51,6 @@ function resultRow(c) {
   return row;
 }
 const byName = (a, b) => a.name.localeCompare(b.name);
-const byType = (a, b) => sortKey(a).localeCompare(sortKey(b));
 const SEARCH_SORTS = {
   alpha: { label: "Alphabetic" },
   date:  { label: "Release date", key: releaseDate, grouped: false },
@@ -96,7 +95,7 @@ function dropOnCategory(data, key, k) {
 function newCategoryBox(d) {
   const full = customCats(d).length >= MAX_CUSTOM_CATS;
   return h("button", { class: "catbox empty-box catbox-new", disabled: full,
-    title: full ? `You have ${MAX_CUSTOM_CATS} custom categories; remove one to add another.` : "Add a category of your own",
+    title: full ? "Limit reached" : null,
     onclick: () => { const name = prompt("Name for the new category"); if (name && name.trim() && addCategory(d, name)) changed(); } },
     full ? `${MAX_CUSTOM_CATS} of ${MAX_CUSTOM_CATS} custom` : "+ New category");
 }
@@ -104,27 +103,32 @@ function sectionEl(key, label, extraInfo) {
   const d = deck(), mode = key === "main" ? "cats" : "custom";
   const items = orderedItems(d, key);
   let body;
-  if (!items.length) body = h("div", { class: "grid" }, h("div", { class: "empty" }, EMPTY_HINT[key]));
+  if (!items.length) body = h("div", { class: "grid" }, h("div", { class: "empty" }));
   else if (mode === "cats") body = null;
   if (mode === "cats") {
     // Every category gets a box, even when empty, so cards can be dragged between them.
     const groups = new Map(d.cats.map(k => [k.id, []])), none = [];
     for (const it of items) { const k = primaryCat(d, it[0].id); k ? groups.get(k.id).push(it) : none.push(it); }
     const box = (k, its) => {
-      const el = h("div", { class: "catbox" + (its.length ? "" : " empty-box"), style: { "--c": k ? k.color : "#8e9197" },
+      const el = h("div", { class: "catbox" + (its.length ? "" : " empty-box") + (k ? "" : " uncat"), style: { "--c": k ? k.color : "#8e9197" },
         ondragover: e => { e.preventDefault(); e.stopPropagation(); el.classList.add("drop"); },
         ondragleave: e => { if (!el.contains(e.relatedTarget)) el.classList.remove("drop"); },
         ondrop: e => { e.preventDefault(); e.stopPropagation(); el.classList.remove("drop"); dropOnCategory(dropData(e), key, k); },
-        title: its.length ? null : `Drag cards here to put them in ${k ? k.name : "no category"}` },
+        title: null },
         h("div", { class: "catbox-h", title: k && k.hint ? k.hint : null }, h("b", {}, k ? k.name : "Not in a category"),
           h("span", { class: "dim" }, its.length ? (n => `${n} card${n === 1 ? "" : "s"}`)(its.reduce((a, [, n]) => a + n, 0)) : "Drag cards here"),
           k && !k.builtin ? h("button", { class: "catbox-x", title: `Remove the "${k.name}" category`, "aria-label": `Remove the ${k.name} category`,
-            onclick: e => { e.stopPropagation(); if (confirm(`Remove the "${k.name}" category? Its cards stay in the deck.`)) { removeCategory(d, k.id); changed(); } } }, "✕") : null),
+            onclick: e => { e.stopPropagation(); if (confirm(`Remove "${k.name}"?`)) { removeCategory(d, k.id); changed(); } } }, "✕") : null),
         its.length ? h("div", { class: "grid" }, its.map(([c, n]) => tile(c, n, key, k))) : null);
       return el;
     };
     const full = d.cats.filter(k => groups.get(k.id).length), empty = d.cats.filter(k => !groups.get(k.id).length);
-    body = [...full.map(k => box(k, groups.get(k.id))), none.length ? box(null, none) : null,
+    // Filled boxes hang in two independent strips (first half left, rest right), each box right
+    // under the previous one, so a tall category never leaves a gap beside it. Uncategorised
+    // cards get the full width below; empty categories stay compact at the bottom.
+    const boxes = full.map(k => box(k, groups.get(k.id))), half = Math.ceil(boxes.length / 2);
+    body = [h("div", { class: "catcols" }, h("div", { class: "catcol" }, boxes.slice(0, half)), h("div", { class: "catcol" }, boxes.slice(half))),
+      none.length ? box(null, none) : null,
       h("div", { class: "empty-boxes" }, empty.map(k => box(k, [])), none.length ? null : box(null, []), newCategoryBox(d))];
   }
   if (!body && mode !== "cats") body = h("div", { class: "grid" }, items.map(([c, n]) => tile(c, n, key)));
@@ -187,14 +191,14 @@ function renderBuild() {
   // deck area
   $("#deckArea", root).replaceChildren(
     h("div", { class: "deckbar" },
-      h("div", { class: "seg", role: "group", "aria-label": "Deck view" }, DECK_VIEWS.map(([v, l, tip]) =>
-        h("button", { "aria-pressed": S.ui.deckView === v, title: tip, onclick: () => { S.ui.deckView = v; save(); renderBuild(); } }, l))),
+      h("div", { class: "seg", role: "group", "aria-label": "Deck view" }, DECK_VIEWS.map(([v, l]) =>
+        h("button", { "aria-pressed": S.ui.deckView === v, onclick: () => { S.ui.deckView = v; save(); renderBuild(); } }, l))),
       S.ui.deckView === "table" ? h("div", { class: "seg", role: "group", "aria-label": "Table order",
-        title: S.ui.tableOrder === "custom" ? "Drag a card to move it; Shift-drag moves every copy." : "Card type, then name. Dragging a card switches to Custom." },
+        title: S.ui.tableOrder === "custom" ? "Shift-drag moves every copy" : null },
         TABLE_ORDERS.map(([v, l]) => h("button", { "aria-pressed": (S.ui.tableOrder || "alpha") === v, onclick: () => setTableOrder(v) }, l))) : null,
       pictureNotice(),
       h("span", { class: "grow" }),
-      h("button", { class: "toggle", "aria-pressed": !!S.ui.overrideLimit, title: "Allow more copies than the format's limit (the deck is still flagged as illegal)",
+      h("button", { class: "toggle", "aria-pressed": !!S.ui.overrideLimit,
         onclick: () => { S.ui.overrideLimit = !S.ui.overrideLimit; save(); renderBuild(); toast(S.ui.overrideLimit ? "Card limits overridden" : "Card limits enforced"); } }, "Override card limit")),
     ...deckView(),);
   renderDetail();
@@ -209,8 +213,8 @@ function extraInfo(c) {
   if (c.ocg) rows.push(["OCG release", c.ocg]);
   if (c.alts && c.alts.length) rows.push(["Artworks", String(c.alts.length + 1)]);
   let prints;
-  if (!S.setNames) prints = h("p", { class: "dim" }, "Printing details arrive with the next card-data update.");
-  else if (!c.sets || !c.sets.length) prints = h("p", { class: "dim" }, "No printings recorded. The card may be OCG-only or not released yet.");
+  if (!S.setNames) prints = h("p", { class: "dim" }, "Printings arrive with the next data update.");
+  else if (!c.sets || !c.sets.length) prints = h("p", { class: "dim" }, "No printings.");
   else prints = h("div", { class: "prints" }, h("table", {},
     h("tr", {}, h("th", {}, "Set"), h("th", {}, "Code"), h("th", {}, "Rarity")),
     c.sets.map(([code, si, ri]) => h("tr", {}, h("td", {}, S.setNames[si] || "?"), h("td", { class: "code" }, code), h("td", {}, S.rarities[ri] || "")))));
@@ -223,7 +227,7 @@ function extraInfo(c) {
 function renderDetail() {
   const box = $("#detail"); if (!box) return;
   const c = S.sel && card(S.sel), d = deck(), f = fmt();
-  if (!c) return box.replaceChildren(h("h2", {}, "Card info"), h("p", { class: "dim" }, "Click a card in the List or the Searcher to see it here."));
+  if (!c) return box.replaceChildren(h("h2", { class: "dim" }, "Card info"));
   const lab = limitLabel(c), pts = f.points ? pointsOf(c) : 0;
   const where = [["main", "Main"], ["extra", "Extra"], ["side", "Side"]].filter(([k]) => d[k][c.id]).map(([k, name]) => `${d[k][c.id]} in ${name}`);
   box.replaceChildren(
@@ -238,4 +242,4 @@ function renderDetail() {
     h("div", { class: "desc" }, c.desc),
     extraInfo(c));
 }
-export { byName, byType, DECK_VIEWS, deckView, dropOnCategory, extraInfo, mainInfo, Q, renderBuild, renderDetail, renderResults, resultRow, SEARCH_SORTS, searchCards, sectionEl, setDirButton, sortResults };
+export { byName, DECK_VIEWS, deckView, dropOnCategory, extraInfo, mainInfo, Q, renderBuild, renderDetail, renderResults, resultRow, SEARCH_SORTS, searchCards, sectionEl, setDirButton, sortResults };

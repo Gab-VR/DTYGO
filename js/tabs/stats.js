@@ -10,7 +10,7 @@ function bars(title, entries, color) {
   const max = Math.max(1, ...entries.map(e => e[1]));
   return h("div", { class: "panel bars" }, h("h2", { style: { marginBottom: "8px" } }, title),
     entries.length ? entries.map(([label, v, col]) => h("div", { class: "b" }, h("span", { title: label }, label),
-      h("div", { class: "track" }, h("i", { style: { width: 100 * v / max + "%", background: col || color || "var(--gold)" } })), h("span", { class: "num" }, v)))
+      h("div", { class: "track" }, h("i", { style: { width: 100 * v / max + "%", background: col || color || "var(--teal)" } })), h("span", { class: "num" }, v)))
       : h("p", { class: "dim" }, "Nothing to show yet."));
 }
 function tally(sec, keyFn, filter = () => true) {
@@ -39,12 +39,12 @@ function renderStats() {
         h("tr", {}, h("th", {}), h("th", { class: "num" }, "copies"), h("th", { class: "num", title: "5-card hand" }, "going 1st"), h("th", { class: "num", title: "6-card hand" }, "going 2nd")),
         catRows.map(([k, n]) => h("tr", { title: k.hint || null }, h("td", {}, h("span", { style: { color: k.color } }, "● "), k.name),
           h("td", { class: "num" }, n), h("td", { class: "num" }, pct(pOpen(n, 5))), h("td", { class: "num" }, pct(pOpen(n, 6))))))
-        : h("p", { class: "dim" }, "Tag cards in the Hands tab or the Categories view to see these."))
+        : h("p", { class: "dim" }, "No categories used yet."))
   ];
   if (f.points) {
     const pts = [];
     for (const s of ["main", "extra", "side"]) for (const [id, n] of Object.entries(d[s])) { const c = card(id); if (c && pointsOf(c)) pts.push([`${c.name}${s === "side" ? " (side)" : ""}`, n * pointsOf(c)]); }
-    panels.unshift(bars(`${f.name} points (${deckPoints()}/${f.cap})`, pts.sort((a, b) => b[1] - a[1]), "var(--gold)"));
+    panels.unshift(bars(`${f.name} points (${deckPoints()}/${f.cap})`, pts.sort((a, b) => b[1] - a[1]), "var(--teal)"));
   }
   root.className = "tab on stats"; root.replaceChildren(...panels);
 }

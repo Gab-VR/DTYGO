@@ -14,8 +14,6 @@ function orderedItems(d, key) {
   const o = ensureOrder(d)[key];
   return o.filter(id => d[key][id]).map(id => [card(id), d[key][id]]).filter(([c]) => c);
 }
-const EMPTY_HINT = { main: "Right-click a search result to add it here, or drag it in.", extra: "Extra Deck monsters go here automatically.",
-  side: "Middle-click a search result to add it here, or drag it in." };
 
 // "Main Deck  40 cards (…)" heading shared by the Table and Categories views.
 function sectionHeader(label, key, info = "") {
@@ -71,7 +69,7 @@ function tableDrop(sec, data, to) {
 }
 function tableEvents(c, sec, pos) {
   return Object.assign(deckCardEvents(c, sec), {
-    title: `${c.name}\nClick to view. Right-click removes this copy. Drag to move it; Shift-drag moves every copy.`,
+    title: c.name,
     ondragstart: e => dragData(e, c.id, sec, undefined, { pos, set: e.shiftKey }),
     ondragover: e => {
       e.preventDefault(); e.stopPropagation();
@@ -92,7 +90,7 @@ function tableSection(key, label, info = "") {
   const d = deck(), list = tableList(d, key);
   const mat = h("div", { class: "mat" + (list.length ? "" : " mat-empty") },
     list.length ? list.map((id, i) => { const c = card(id); return c ? mini(c, key, tableEvents(c, key, i)) : null; })
-      : h("div", { class: "mat-hint" }, EMPTY_HINT[key]));
+      : null);
   mat.addEventListener("dragover", e => {
     e.preventDefault(); mat.classList.add("drop");
     const last = mat.querySelector(".mini:last-of-type");                 // empty space: the card goes last
@@ -111,7 +109,7 @@ function sheetColumn(title, rows, slots, sec, totalLabel, total) {
     if (!r) return h("div", { class: "kde-row" }, h("span", { class: "q" }), h("span", { class: "n" }));
     const [c, n] = r;
     return h("div", Object.assign({ class: ["kde-row filled", S.sel === c.id && "sel", cardIsBad(c) && "illegal", over && "over"].filter(Boolean).join(" ") },
-      deckCardEvents(c, sec), over ? { title: `${c.name}\nThere's no slot for this card on the paper form.` } : {}),
+      deckCardEvents(c, sec), over ? { title: `${c.name} (no slot on the form)` } : {}),
       h("span", { class: "q" }, n), h("span", { class: "n" }, c.name));
   };
   return h("div", { class: "kde-col" },
@@ -135,15 +133,14 @@ function sheetView() {
     try {
       const bytes = await fillKde(await kdeTemplate(), d, info);
       download(new Blob([bytes], { type: "application/pdf" }), `${d.name.replace(/[\\/:*?"<>|]/g, "_")} - decklist.pdf`);
-      status.replaceChildren(data.overflow.length ? h("span", { class: "warn" }, `Exported, but some cards don't fit: ${data.overflow.join("; ")}.`) : "Exported. The fields stay editable in the PDF.");
+      status.replaceChildren(data.overflow.length ? h("span", { class: "warn" }, `Exported; doesn't fit: ${data.overflow.join("; ")}.`) : "Exported.");
     } catch (e) {
-      status.replaceChildren(h("span", { class: "warn" }, `${e.message}. `), `Add the form to the app folder as ${KDE_FILE}, or `,
+      status.replaceChildren(h("span", { class: "warn" }, `${e.message}. `), `Missing ${KDE_FILE}: `,
         h("button", { class: "small", onclick: () => picker.click() }, "choose the form file"), ".");
     }
   }
   return h("div", { class: "section kde" },
     h("div", { class: "kde-top" },
-      h("div", { class: "kde-note" }, "Deck registration sheet. Fill in your details; the card slots follow your deck. Drag cards to reorder, right-click to remove."),
       h("div", { class: "kde-fields" }, SHEET_FIELDS.map(field)),
       h("div", { class: "kde-judge" },
         h("div", {}, h("span", {}, "Last name initial"), initial),
@@ -157,8 +154,7 @@ function sheetView() {
       dropZone(sheetColumn("EXTRA DECK", data.extra, SIDE_ROWS, "extra", "TOTAL EXTRA DECK", t.extra), "extra"),
       h("div", { class: "kde-export" },
         h("button", { class: "primary", onclick: exportPdf }, "Export PDF"),
-        h("p", {}, "Fills in Konami's form. You can still edit every field in the PDF afterwards."),
         status, picker)));
 }
 
-export { setTableOrder, startCustomOrder, EMPTY_HINT, orderedItems, sectionHeader, sheetView, TABLE_ORDERS, tableDrop, tableSection };
+export { setTableOrder, startCustomOrder, orderedItems, sectionHeader, sheetView, TABLE_ORDERS, tableDrop, tableSection };

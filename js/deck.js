@@ -16,13 +16,7 @@ const DEFAULT_CATS = [
 const CATS_VERSION = 3;
 function newDeck(name = "New deck") {
   const cats = DEFAULT_CATS.map(([n, c, hint]) => ({ id: uid(), name: n, color: c, hint, builtin: true }));
-  const [st, , ex, , , br] = cats;
-  return { id: uid(), name, main: {}, extra: {}, side: {}, order: {}, tags: {}, cats, catsV: CATS_VERSION, hand: 5, swPool: [],
-    scen: [
-      { id: uid(), name: "Can play", conds: [{ cat: st.id, op: ">=", n: 1 }] },
-      { id: uid(), name: "Starter + extender", conds: [{ cat: st.id, op: ">=", n: 1 }, { cat: ex.id, op: ">=", n: 1 }] },
-      { id: uid(), name: "Brick-free opener", conds: [{ cat: st.id, op: ">=", n: 1 }, { cat: br.id, op: "<=", n: 0 }] }
-    ] };
+  return { id: uid(), name, main: {}, extra: {}, side: {}, order: {}, tags: {}, cats, catsV: CATS_VERSION, swPool: [] };
 }
 /* Brings a deck's categories up to the current built-ins, keeping every card's tags:
    v1 (no built-ins yet): the old default names become built-ins, then as below.
@@ -101,13 +95,13 @@ function addCategory(d, name) {
   const k = { id: uid(), name: name.trim().slice(0, 24) || "New category", color };
   d.cats.push(k); return k;
 }
-// Removes one of your own categories: its tag comes off every card, and hand scenarios drop
-// the conditions that used it. Built-in categories can't be removed.
+// Removes one of your own categories (built-ins can't be): its tag comes off every card and
+// it leaves any slot on the Hands page.
 function removeCategory(d, id) {
   const k = d.cats.find(x => x.id === id); if (!k || k.builtin) return false;
   d.cats = d.cats.filter(x => x !== k);
   for (const cid in d.tags) d.tags[cid] = d.tags[cid].filter(t => t !== id);
-  for (const sc of d.scen || []) sc.conds = sc.conds.filter(c => c.cat !== id);
+  for (const hand of d.probs?.hands || []) for (const slot of hand) { const i = slot.indexOf(id); if (i >= 0) slot.splice(i, 1); }
   return true;
 }
 // How many Main Deck copies carry the category.

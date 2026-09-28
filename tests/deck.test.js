@@ -115,14 +115,14 @@ test("a deck from before built-ins existed is migrated too, and migrating twice 
 });
 
 import { removeCategory, categoryCopies } from "../js/deck.js";
-test("removing a custom category untags cards and drops its hand conditions; built-ins stay", () => {
+test("removing a custom category untags cards and clears it from Hands slots; built-ins stay", () => {
   const k = addCategory(d, "Garnet");
   d.main = { 1: 3, 2: 2 }; d.tags = { 1: [k.id, d.cats[0].id], 2: [k.id] };
-  d.scen = [{ conds: [{ cat: k.id, op: "<=", n: 0 }, { cat: d.cats[0].id, op: ">=", n: 1 }] }];
+  d.probs = { size: 5, hands: [[[k.id, d.cats[0].id], [k.id], [], [], []]] };
   assert.equal(categoryCopies(d, k.id), 5);
   assert.equal(removeCategory(d, d.cats[0].id), false);          // built-in: refused
   assert.equal(removeCategory(d, k.id), true);
   assert.deepEqual(d.tags, { 1: [d.cats[0].id], 2: [] });
-  assert.equal(d.scen[0].conds.length, 1);
+  assert.deepEqual(d.probs.hands[0].slice(0, 2), [[d.cats[0].id], []]);
   assert.ok(!d.cats.includes(k));
 });

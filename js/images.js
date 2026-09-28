@@ -59,14 +59,6 @@ function coverage() {
   const missing = ids.filter(id => !IMGS.urls.has(id)).map(card).filter(Boolean);
   return { have, total: S.list.length, unknown, deckTotal: ids.length, missing };
 }
-function coverageText() {
-  if (!IMGS.urls.size || !S.list.length) return "";
-  const cv = coverage(), pc = Math.round(100 * cv.have / Math.max(1, cv.total));
-  let s = `The folder has images for ${cv.have.toLocaleString()} of ${cv.total.toLocaleString()} cards (${pc}%).`;
-  if (cv.deckTotal) s += cv.missing.length ? ` ${cv.missing.length} of the ${cv.deckTotal} cards in this deck have no image there.` : " Every card in this deck has one.";
-  if (cv.unknown) s += ` ${cv.unknown} files have passcodes that aren't in the card data.`;
-  return s;
-}
 async function* walkDir(dir, depth = 0) {
   const subdirs = [];
   for await (const e of dir.values()) { if (e.kind === "file") yield e; else if (depth < 2) subdirs.push(e); }
@@ -196,4 +188,4 @@ async function imageDiagnostics() {
 }
 function chooseImages(mode) { S.ui.img = mode; save(); probePath(); emit("images"); }
 
-export { artPos, canRememberFolder, chooseImages, connectFolder, connectWithInput, coverage, coverageText, folderReport, forgetFolder, hideBroken, imageDiagnostics, IMG_ART, IMG_FULL, IMG_NAME, imgOn, IMGS, indexFiles, indexHandle, isGone, linkAltArts, newDiag, pickFolder, pickWithInput, probePath, reconnectFolder, restoreFolder, walkDir };
+export { artPos, canRememberFolder, chooseImages, connectFolder, connectWithInput, coverage, folderReport, forgetFolder, hideBroken, imageDiagnostics, IMG_ART, IMG_FULL, IMG_NAME, imgOn, IMGS, indexFiles, indexHandle, isGone, linkAltArts, newDiag, pickFolder, pickWithInput, probePath, reconnectFolder, restoreFolder, walkDir };

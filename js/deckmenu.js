@@ -8,7 +8,7 @@ import { exportYdk, fromYdke, importDeck, toYdke } from "./ydk.js";
 function ydkeDialog() {
   const ta = h("textarea", {}, toYdke());
   $("#dlgBody").replaceChildren(h("h2", {}, "YDKE link"),
-    h("p", { class: "dim" }, "Copy this to share the current deck, or paste a ydke:// link and import it as a new deck."), ta,
+    ta,
     h("div", { class: "row", style: { marginTop: "10px", justifyContent: "flex-end" } },
       h("button", { type: "button", onclick: () => { navigator.clipboard?.writeText(ta.value); toast("Copied"); } }, "Copy"),
       h("button", { type: "button", class: "primary", onclick: () => {
