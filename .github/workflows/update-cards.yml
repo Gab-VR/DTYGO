@@ -2,7 +2,7 @@ name: Update card data
 
 on:
   push:
-    branches: [main]           # also runs when you push app changes (cheap: one version check)
+    branches: [master]         # also runs when you push app changes (a version check plus the two point lists)
   schedule:
     - cron: "17 6 * * *"      # daily, 06:17 UTC (off the hour, when GitHub is less busy)
   workflow_dispatch:           # adds a "Run workflow" button in the Actions tab

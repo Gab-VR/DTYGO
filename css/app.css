@@ -348,3 +348,4 @@ body.moving-cat,body.moving-cat *{cursor:grabbing!important;user-select:none!imp
 .search .filters label.row{white-space:nowrap;flex-wrap:nowrap;gap:5px;font-size:13px}
 .results-bar{display:block;width:100%;margin-top:6px;padding:0;height:16px;line-height:14px;font-size:10px;color:var(--dim);background:var(--panel2);border:1px solid var(--line);border-radius:5px}
 .results-bar:hover{color:var(--ink);border-color:var(--teal)}
+.mini .bub.on-pic{top:auto;bottom:3px;right:3px;font-size:9px;padding:0 4px}   /* below the name on miniatures */

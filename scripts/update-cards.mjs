@@ -4,7 +4,8 @@
 // Polite by design (https://ygoprodeck.com/api-guide/):
 //  * asks checkDBVer.php first and stops if nothing changed;
 //  * otherwise makes 3 requests, one second apart (limit is 20/s);
-//  * refreshes anyway once a week, in case point lists change without a version bump.
+//  * still checks the Genesys point lists every run (they can change without a version bump);
+//  * refreshes everything anyway once a week.
 //
 // Usage: node scripts/update-cards.mjs [--force]      (Node 18+)
 
@@ -58,24 +59,46 @@ const ver = await getJSON("checkDBVer.php");
 const dbVersion = String((Array.isArray(ver) ? ver[0] : ver)?.database_version ?? "unknown");
 const stale = !prev || Date.now() - Date.parse(prev.fetched) > WEEK;
 
+// Point lists can change without a database version bump, so they're checked on every run.
+async function pointLists() {
+  await sleep(1000);
+  const gp = points((await getJSON("cardinfo.php?format=genesys&misc=yes")).data, "genesys_points");
+  await sleep(1000);
+  let gpo = null;
+  try { gpo = points((await getJSON("cardinfo.php?format=genesys%20ocg&misc=yes")).data, "genesys_ocg_points"); }
+  catch (e) { console.warn(`Genesys OCG list skipped: ${e.message}`); }
+  if (Object.keys(gp).length === 0) throw new Error("Empty Genesys point list; not writing.");
+  return { gp, gpo };
+}
+const same = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
+
 if (!force && !stale && prev.source === dbVersion && prev.schema === SCHEMA) {
-  console.log(`Up to date (YGOPRODeck database v${dbVersion}).`);
-  process.exit(0);
+  const old = await readFile(new URL("cards.json", OUT), "utf8").then(JSON.parse).catch(() => null);
+  if (!old) { console.log("cards.json missing; rebuilding."); }
+  else {
+    const { gp, gpo } = await pointLists();
+    if (same(gp, old.gp || {}) && (!gpo || same(gpo, old.gpo || {}))) {
+      console.log(`Up to date (YGOPRODeck database v${dbVersion}, point lists unchanged).`);
+      process.exit(0);
+    }
+    // Only the points changed: keep the cards, update the lists, and bump the version so the app reloads.
+    const fetched = new Date().toISOString();
+    Object.assign(old, { gp, gpo: gpo ?? old.gpo ?? {}, version: fetched, fetched });
+    await writeFile(new URL("cards.json", OUT), JSON.stringify(old));
+    await writeFile(new URL("meta.json", OUT), JSON.stringify({ schema: SCHEMA, version: fetched, fetched, source: dbVersion, count: old.cards.length }, null, 2) + "\n");
+    console.log(`Point lists updated: ${Object.keys(gp).length} Genesys, ${Object.keys(old.gpo).length} Genesys OCG entries.`);
+    process.exit(0);
+  }
 }
 
 console.log(`Building from YGOPRODeck database v${dbVersion}…`);
 await sleep(1000);
 const all = (await getJSON("cardinfo.php?misc=yes")).data;
-await sleep(1000);
-const gp = points((await getJSON("cardinfo.php?format=genesys&misc=yes")).data, "genesys_points");
-await sleep(1000);
-let gpo = {};
-try { gpo = points((await getJSON("cardinfo.php?format=genesys%20ocg&misc=yes")).data, "genesys_ocg_points"); }
-catch (e) { console.warn(`Genesys OCG list skipped: ${e.message}`); gpo = prev?.gpoFallback ?? {}; }
+const lists = await pointLists();
+const gp = lists.gp, gpo = lists.gpo ?? {};
 
 // Refuse to publish something obviously broken.
 if (!Array.isArray(all) || all.length < 10000) throw new Error(`Only ${all?.length} cards returned; not writing.`);
-if (Object.keys(gp).length === 0) throw new Error("Empty Genesys point list; not writing.");
 
 const fetched = new Date().toISOString();
 const cards = all.filter(c => c.frameType !== "skill").map(trim);

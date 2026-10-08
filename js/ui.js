@@ -284,7 +284,13 @@ function mini(c, sec, events = deckCardEvents(c, sec)) {
   return h("div", Object.assign({ class: ["mini", DARK_FRAMES.has(baseFrame(c)) && "dark", isPend(c) && "pend", S.sel === c.id && "sel", cardIsBad(c) && "illegal", pic && "pic"].filter(Boolean).join(" "),
     style: { "--fc": frameColor(c) } }, events),
     pic ? h("img", { src: pic, alt: c.name, draggable: false, loading: "lazy", onerror: e => { e.target.closest(".mini").classList.remove("pic"); e.target.remove(); } }) : null,
-    h("span", { class: "mini-name" }, c.name));
+    h("span", { class: "mini-name" }, c.name),
+    pointsBubble(c));
+}
+// Genesys (or other) points, shown on the card the same way everywhere.
+function pointsBubble(c) {
+  const f = fmt(), p = f.points ? pointsOf(c) : 0;
+  return p ? h("span", { class: "bub pts on-pic", title: `${f.name} points` }, `${p} pts`) : null;
 }
 function cardPicker(onPick, filter = () => true, placeholder = "Search a card") {
   const inp = h("input", { placeholder, style: { width: "100%" }, "aria-label": placeholder }), menu = h("div", { class: "menu", hidden: true });
