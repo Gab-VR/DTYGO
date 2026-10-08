@@ -27,7 +27,7 @@ function binom(n, k) {
   let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i;
   binomMemo.set(key, r); return r;
 }
-const BUILD = "2026-09-28 sw-overlaps";
+const BUILD = "2026-09-28 results-bar";
 
 /* A tiny event bus: logic modules announce what changed, main.js decides what to redraw.
    Events: "changed" (deck/format edited), "select" (selected card), "results" (search list),

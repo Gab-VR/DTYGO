@@ -9,7 +9,7 @@ import { DECK_VIEWS, renderBuild, renderResults, SEARCH_SORTS } from "./tabs/bui
 import { renderFormat } from "./tabs/format.js";
 import { renderHands } from "./tabs/hands.js";
 import { renderSW } from "./tabs/smallworld.js";
-import { refreshImageStatus, registerTab, renderHeader, renderTab, setTab } from "./ui.js";
+import { initSplitter, refreshImageStatus, registerTab, renderHeader, renderTab, setTab, toggleSplit } from "./ui.js";
 import { $, BUILD, h, on, toast } from "./util.js";
 import { importDeck, parseYdk } from "./ydk.js";
 
@@ -79,7 +79,10 @@ async function init() {
   document.addEventListener("drop", async e => { const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f && /\.ydk$/i.test(f.name)) { e.preventDefault(); const { d, unknown } = parseYdk(await f.text()); importDeck(d, unknown, f.name.replace(/\.ydk$/i, "")); } });
   await idb.open();
   await loadDB();
-  renderHeader(); setTab(cur.tab === "probs" ? "hands" : cur.tab === "stats" || !cur.tab ? "build" : cur.tab);   // app first; pictures load afterwards
+  const known = t => ["build", "hands", "sw", "format"].includes(t);
+  S.tab2 = known(cur.tab2) ? cur.tab2 : null;
+  $("#splitBtn").addEventListener("click", toggleSplit); initSplitter();
+  renderHeader(); setTab(cur.tab === "probs" ? "hands" : known(cur.tab) ? cur.tab : "build");   // app first; pictures load afterwards
   // Re-reading a big image folder can take a while (thousands of files), so it runs in the background.
   // Always redraw afterwards: the folder may need a "Reconnect" click, and that button must appear.
   restoreFolder().then(() => { if (IMGS.urls.size) probePath(); renderResults(); renderTab(); })

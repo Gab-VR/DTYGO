@@ -5,11 +5,31 @@ import { artPos, hideBroken, IMG_ART, IMG_FULL, imgOn } from "../images.js";
 import { inPool, limitLabel, limitOf, pointsOf } from "../legality.js";
 import { card, changed, deck, fmt, S, save } from "../store.js";
 import { bubbles, dragData, dropAfter, dropData, dropZone, flipKey, flipPlay, flipSnapshot, hideDropLine, pictureNotice, showDropLine, tile } from "../ui.js";
-import { orderedItems, sectionHeader, setTableOrder, sheetView, TABLE_ORDERS, tableSection } from "./deckviews.js";
+import { orderedItems, sectionHeader, setTableOrder, sheetView, shuffleDeck, TABLE_ORDERS, tableSection } from "./deckviews.js";
 import { $, $$, h, toast } from "../util.js";
 
 /* ================= build tab ================= */
-const Q = { q: "", kind: "all", attr: "", race: "", lvMin: "", lvMax: "", atk: "", def: "", arch: "", legal: false, limit: 150 };
+const Q_DEFAULTS = { q: "", kind: "all", attr: "", race: "", lvMin: "", lvMax: "", atk: "", def: "", arch: "", legal: false, limit: 150 };
+const Q = { ...Q_DEFAULTS };
+/* The search results can be folded away with the bar above them (▲ open, ▼ closed). In split
+   view they start closed so Card info shows under the filters; searching opens them. */
+const resultsOpen = () => (document.querySelector("#panes.split") ? S.ui.resultsOpenSplit ?? false : S.ui.resultsOpen ?? true);
+function setResultsOpen(open) {
+  if (document.querySelector("#panes.split")) S.ui.resultsOpenSplit = open; else S.ui.resultsOpen = open;
+  save(); showResults();
+}
+function showResults() {
+  const open = resultsOpen(), bar = $("#resultsBar"), list = $("#results"); if (!bar || !list) return;
+  list.hidden = !open;
+  bar.textContent = open ? "▲" : "▼";
+  bar.setAttribute("aria-expanded", open); bar.setAttribute("aria-label", open ? "Hide the search results" : "Show the search results");
+}
+// Reset: back to an empty search with the default sort; the panel is rebuilt so every field clears.
+function resetSearch() {
+  Object.assign(Q, Q_DEFAULTS); S.ui.searchSort = "alpha"; S.ui.searchDir = "asc"; save();
+  $("#tab-build").replaceChildren(); renderBuild();
+}
+
 function searchCards() {
   const words = Q.q.toLowerCase().split(/\s+/).filter(Boolean), arch = Q.arch.toLowerCase();
   const out = [];
@@ -174,8 +194,8 @@ function setDirButton(b) {
 }
 const DECK_VIEWS = [
   ["table", "Table", "Every card as a full miniature"],
-  ["cats", "Categories", "Main Deck grouped by category"],
-  ["sheet", "Sheet", "Decklist form you can fill in and export as a PDF"]
+  ["sheet", "Sheet", "Decklist form you can fill in and export as a PDF"],
+  ["cats", "Categories", "Main Deck grouped by category"]
 ];
 function deckView() {
   const view = S.ui.deckView;
@@ -188,10 +208,12 @@ function renderBuild() {
   const root = $("#tab-build");
   const keepFocus = document.activeElement && document.activeElement.id;
   if (!$("#results", root)) {
-    const inp = (k, attrs = {}) => h("input", Object.assign({ value: Q[k], oninput: e => { Q[k] = e.target.value; Q.limit = 150; renderResults(); } }, attrs));
-    const sel = (k, opts, attrs = {}) => h("select", Object.assign({ onchange: e => { Q[k] = e.target.value; Q.limit = 150; renderResults(); } }, attrs), opts.map(([v, l]) => h("option", { value: v, selected: Q[k] === v }, l)));
+    const searched = () => { Q.limit = 150; if (!resultsOpen()) setResultsOpen(true); renderResults(); };
+    const inp = (k, attrs = {}) => h("input", Object.assign({ value: Q[k], oninput: e => { Q[k] = e.target.value; searched(); } }, attrs));
+    const sel = (k, opts, attrs = {}) => h("select", Object.assign({ onchange: e => { Q[k] = e.target.value; searched(); } }, attrs), opts.map(([v, l]) => h("option", { value: v, selected: Q[k] === v }, l)));
     const search = h("aside", { class: "panel search" },
-      h("div", { class: "row" }, h("h2", { class: "grow" }, "Search"), h("span", { class: "dim", id: "resCount" })),
+      h("div", { class: "row" }, h("h2", { class: "grow" }, "Search"), h("span", { class: "dim", id: "resCount" }),
+        h("button", { class: "small", onclick: resetSearch, title: "Clear the search and filters" }, "Reset")),
       h("div", { class: "filters" },
         inp("q", { id: "q", class: "full", placeholder: "Card name", type: "search", "aria-label": "Card name" }),
         sel("kind", [["all", "All cards"], ["monster", "Main Deck monsters"], ["extra", "Extra Deck"], ["spell", "Spells"], ["trap", "Traps"]], { "aria-label": "Card kind" }),
@@ -211,6 +233,7 @@ function renderBuild() {
             Object.entries(SEARCH_SORTS).map(([v, s]) => h("option", { value: v, selected: S.ui.searchSort === v }, s.label))),
           h("button", { class: "dir", id: "searchDir", "aria-label": "Sort direction", onclick: e => {
             S.ui.searchDir = S.ui.searchDir === "desc" ? "asc" : "desc"; save(); setDirButton(e.currentTarget); renderResults(); } }))),
+      h("button", { class: "results-bar", id: "resultsBar", onclick: () => setResultsOpen(!resultsOpen()) }),
       h("div", { id: "results", class: "results" }));
     root.replaceChildren(search, h("div", { id: "deckArea" }), h("aside", { id: "detail", class: "panel detail" }));
     root.className = "tab on build";
@@ -227,6 +250,7 @@ function renderBuild() {
       S.ui.deckView === "table" ? h("div", { class: "seg", role: "group", "aria-label": "Table order",
         title: S.ui.tableOrder === "custom" ? "Shift-drag moves every copy" : null },
         TABLE_ORDERS.map(([v, l]) => h("button", { "aria-pressed": (S.ui.tableOrder || "alpha") === v, onclick: () => setTableOrder(v) }, l))) : null,
+      S.ui.deckView === "table" ? h("button", { onclick: shuffleDeck, title: "Shuffle the Main Deck (switches to Custom order)" }, "Shuffle") : null,
       S.ui.deckView === "cats" ? h("label", { class: "row cat-width" }, h("span", { class: "dim imgnote" }, "Columns"),
         h("input", { type: "range", class: "ruler", min: 1, max: 4, step: 1, value: S.ui.catCols || 2, "aria-label": "Category columns",
           oninput: e => { S.ui.catCols = +e.target.value; $(".catcols")?.style.setProperty("--catn", S.ui.catCols); $(".ruler-n").textContent = S.ui.catCols; },
@@ -238,6 +262,7 @@ function renderBuild() {
         onclick: () => { S.ui.overrideLimit = !S.ui.overrideLimit; save(); renderBuild(); toast(S.ui.overrideLimit ? "Card limits overridden" : "Card limits enforced"); } }, "Override card limit")),
     ...deckView(),);
   flipPlay($("#deckArea", root), before);
+  showResults();
   renderDetail();
   if (keepFocus === "q") $("#q").focus();
 }

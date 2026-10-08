@@ -28,7 +28,7 @@ const S = {
 const card = id => S.cards.get(S.alias.get(+id) ?? +id);
 const deck = () => S.decks.find(d => d.id === S.deckId);
 const fmt = () => S.formats.find(f => f.id === S.fmtId);
-function save() { LS.set("decks", S.decks); LS.set("formats", S.formats); LS.set("cur", { deck: S.deckId, fmt: S.fmtId, tab: S.tab }); LS.set("ui", S.ui); }
+function save() { LS.set("decks", S.decks); LS.set("formats", S.formats); LS.set("cur", { deck: S.deckId, fmt: S.fmtId, tab: S.tab, tab2: S.tab2 }); LS.set("ui", S.ui); }
 const count = sec => Object.values(sec).reduce((a, b) => a + b, 0);
 
 // Call after editing decks or formats: saves, then lets the interface redraw.

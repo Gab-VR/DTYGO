@@ -34,6 +34,13 @@ function startCustomOrder(d, quiet = false) {
   S.ui.tableOrder = "custom"; save();
   if (!quiet) toast("Switched to Custom order");
 }
+// Shuffle the Main Deck's cards on the table (every copy separately); stays in Custom order.
+function shuffleDeck() {
+  const d = deck(); startCustomOrder(d, true);
+  const list = ensureCopyOrder(d, "main");
+  for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+  d.copyOrder.main = list; changed();
+}
 function setTableOrder(v) {
   if (v === "custom") startCustomOrder(deck(), true); else S.ui.tableOrder = v;
   save(); changed();
@@ -178,4 +185,4 @@ function sheetView() {
         status, picker)));
 }
 
-export { setTableOrder, startCustomOrder, orderedItems, sectionHeader, sheetView, TABLE_ORDERS, tableDrop, tableSection };
+export { setTableOrder, shuffleDeck, startCustomOrder, orderedItems, sectionHeader, sheetView, TABLE_ORDERS, tableDrop, tableSection };

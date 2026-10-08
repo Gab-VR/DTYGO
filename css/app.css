@@ -47,6 +47,20 @@ nav button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--teal)}
 
 main{padding:14px 16px}
 .tab:not(.on){display:none}
+/* pages: one shown, or two side by side (split) */
+.slot{min-width:0;container-type:inline-size}
+.slot:not(.shown),#tabs2,#splitter{display:none}
+main.split{display:grid;grid-template-columns:minmax(0,var(--left,50%)) 14px minmax(0,1fr);grid-template-rows:auto 1fr;align-items:start}
+main.split .slot.left{grid-column:1;grid-row:1 / span 2}
+main.split .slot.right{grid-column:3;grid-row:2}
+main.split #tabs2{display:flex;gap:2px;grid-column:3;grid-row:1;margin:-6px 0 10px;border-bottom:1px solid var(--line)}
+#tabs2 button{background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;padding:4px 10px;font-family:var(--serif);font-variant:small-caps;font-size:15px;color:var(--dim)}
+#tabs2 button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--teal)}
+main.split #splitter{display:block;grid-column:2;grid-row:1 / span 2;align-self:stretch;cursor:col-resize;position:relative;min-height:60vh}
+#splitter::after{content:"";position:absolute;left:6px;top:0;bottom:0;width:2px;border-radius:2px;background:var(--line)}
+#splitter:hover::after,#splitter:focus-visible::after,body.resizing #splitter::after{background:var(--teal)}
+body.resizing{cursor:col-resize;user-select:none}
+#splitBtn{padding:4px 10px}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
 
 /* build layout */
@@ -69,7 +83,7 @@ main{padding:14px 16px}
 .section-h{display:flex;align-items:baseline;gap:10px;margin:0 0 6px 2px}
 /* Card rows in the Categories view: one fixed card width (so the number per row is exact) and
    every row centred, the last one included. */
-.grid{display:flex;flex-wrap:wrap;justify-content:flex-start;align-items:flex-start;gap:10px 8px;min-height:46px}
+.grid{display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-start;gap:10px 8px;min-height:46px}
 .grid > .ctile{width:74px;flex:none}
 .grid > .empty{flex-basis:100%}
 .empty{color:var(--dim);font-size:13px;padding:10px;border:1px dashed var(--line);border-radius:8px;grid-column:1/-1}
@@ -324,3 +338,13 @@ body.moving-cat,body.moving-cat *{cursor:grabbing!important;user-select:none!imp
 .sw-pop-item{display:flex;align-items:center;gap:8px;background:transparent;border:0;text-align:left;padding:5px 8px;border-radius:5px;font-size:13px}
 .sw-pop-item:hover{background:var(--line)}
 .sw-pop-item .dot{width:9px;height:9px;border-radius:50%;flex:none}
+
+/* Pages follow their pane's width, not the window's (these come last so they win). */
+@container (max-width:1150px){.build{grid-template-columns:280px minmax(0,1fr);grid-template-rows:auto 1fr}.build #deckArea{grid-column:2;grid-row:1 / span 2}.build .detail{grid-column:1;grid-row:2}}
+@container (max-width:640px){.build{grid-template-columns:1fr}.fmt{grid-template-columns:1fr}}
+/* Hands: the slots shrink to fit a narrow pane (6 slots, chance, size button, remove) */
+.pslot{width:clamp(48px, calc((100cqi - 240px) / 6), 110px)}
+@container (max-width:700px){.phand{grid-template-columns:44px auto 34px 22px;gap:5px}.pslots{gap:5px}.odds-big{font-size:46px}}
+.search .filters label.row{white-space:nowrap;flex-wrap:nowrap;gap:5px;font-size:13px}
+.results-bar{display:block;width:100%;margin-top:6px;padding:0;height:16px;line-height:14px;font-size:10px;color:var(--dim);background:var(--panel2);border:1px solid var(--line);border-radius:5px}
+.results-bar:hover{color:var(--ink);border-color:var(--teal)}

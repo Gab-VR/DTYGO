@@ -23,17 +23,59 @@ function renderHeader() {
   pill.textContent = !S.cards.size ? "No card data" : errs ? `${errs} issue${errs > 1 ? "s" : ""}` : iss.length ? "Legal, with notes" : "Legal";
   $("#legalPop").replaceChildren(...iss.map(i => h("li", { class: i.lvl === "warn" ? "warn" : "" }, i.msg)));
 }
+/* Pages and split view. Each page draws into its own section, wrapped in a .slot; one slot is
+   shown, or two side by side when split. The left page follows the header tabs, the right page has
+   its own tab bar, and the divider between them can be dragged. Both pages redraw on every change,
+   so an edit in one shows up in the other at once. */
+const tabList = () => $$("#tabs button").map(b => [b.dataset.tab, b.textContent]);
+const visibleTabs = () => S.ui.split && S.tab2 && S.tab2 !== S.tab ? [S.tab, S.tab2] : [S.tab];
+function layoutTabs() {
+  const [L, R] = visibleTabs(), panes = $("#panes");
+  panes.classList.toggle("split", !!R);
+  panes.style.setProperty("--left", (S.ui.splitAt || 50) + "%");
+  for (const sl of $$("#panes .slot")) {
+    const t = sl.dataset.tab;
+    sl.classList.toggle("shown", t === L || t === R); sl.classList.toggle("left", t === L); sl.classList.toggle("right", t === R);
+  }
+  $$("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === L));
+  $("#tabs2").replaceChildren(...tabList().filter(([t]) => t !== L).map(([t, label]) =>
+    h("button", { role: "tab", "aria-selected": t === R, onclick: () => setTab2(t) }, label)));
+  $("#splitBtn").setAttribute("aria-pressed", !!R);
+}
 function setTab(t) {
-  S.tab = t; $$("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
-  $$(".tab").forEach(s => s.classList.toggle("on", s.id === "tab-" + t)); save(); renderTab();
+  if (t === S.tab2) S.tab2 = S.tab;                                   // picking the right page on the left swaps them
+  S.tab = t; save(); layoutTabs(); renderTab();
+}
+function setTab2(t) { if (t === S.tab) return; S.tab2 = t; save(); layoutTabs(); renderTab(); }
+function toggleSplit() {
+  S.ui.split = !S.ui.split;
+  if (S.ui.split) S.ui.resultsOpenSplit = false;                         // results start folded so Card info is visible
+  if (S.ui.split && (!S.tab2 || S.tab2 === S.tab)) S.tab2 = S.tab === "build" ? "hands" : "build";
+  save(); layoutTabs(); renderTab();
+}
+// Drag the divider (or use the arrow keys on it) to share the width between the two pages.
+function initSplitter() {
+  const bar = $("#splitter"), panes = $("#panes");
+  const setAt = pct => { S.ui.splitAt = Math.max(25, Math.min(75, Math.round(pct))); panes.style.setProperty("--left", S.ui.splitAt + "%"); };
+  bar.addEventListener("pointerdown", e => {
+    e.preventDefault(); bar.setPointerCapture(e.pointerId); document.body.classList.add("resizing");
+    const move = ev => { const r = panes.getBoundingClientRect(); setAt((ev.clientX - r.left) / r.width * 100); };
+    const up = () => { bar.removeEventListener("pointermove", move); bar.removeEventListener("pointerup", up); document.body.classList.remove("resizing"); save(); };
+    bar.addEventListener("pointermove", move); bar.addEventListener("pointerup", up);
+  });
+  bar.addEventListener("keydown", e => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setAt((S.ui.splitAt || 50) + (e.key === "ArrowLeft" ? -5 : 5)); save(); }
+  });
 }
 // Tabs register themselves from main.js, so this module never imports them.
 const TABS = {};
 function registerTab(name, render) { TABS[name] = render; }
-function renderTab() {
-  if (!S.cards.size && S.tab !== "format") return renderSplash($("#tab-" + S.tab));
-  TABS[S.tab]?.();
+function renderOne(t) {
+  const sec = $("#tab-" + t); if (!sec) return;
+  if (!S.cards.size && t !== "format") renderSplash(sec); else TABS[t]?.();
+  sec.classList.add("tab", "on");
 }
+function renderTab() { for (const t of visibleTabs()) renderOne(t); }
 function renderSplash(root) {
   const st = h("p", { class: "dim" });
   const file = h("input", { type: "file", accept: ".json,application/json", hidden: true, onchange: async e => {
@@ -256,4 +298,4 @@ function cardPicker(onPick, filter = () => true, placeholder = "Search a card") 
   return h("div", { class: "sugg" }, inp, menu);
 }
 
-export { bubbles, cardIsBad, cardPicker, deckCardEvents, dragData, dropAfter, dropData, dropZone, flipKey, flipPlay, flipSnapshot, hideDropLine, imageSelect, imageState, marquee, mini, pictureNotice, refreshImageStatus, registerTab, renderHeader, renderSplash, renderTab, setTab, showDropLine, STACK_STEP, stackStyle, TABS, tile };
+export { bubbles, cardIsBad, cardPicker, deckCardEvents, dragData, dropAfter, dropData, dropZone, flipKey, flipPlay, flipSnapshot, hideDropLine, imageSelect, imageState, initSplitter, layoutTabs, marquee, mini, pictureNotice, refreshImageStatus, registerTab, renderHeader, renderSplash, renderTab, setTab, setTab2, showDropLine, STACK_STEP, stackStyle, TABS, tile, toggleSplit, visibleTabs };

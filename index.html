@@ -15,6 +15,7 @@
     <button role="tab" data-tab="sw">Small World</button>
     <button role="tab" data-tab="format">Format</button>
   </nav>
+  <button class="toggle" id="splitBtn" aria-pressed="false" title="Show two pages side by side">Split</button>
   <div class="hdr-right">
     <select id="deckSel" aria-label="Deck"></select>
     <div class="menu-wrap">
@@ -27,11 +28,13 @@
     <div class="legal" id="legal"><button class="pill" id="legalPill" aria-describedby="legalPop">…</button><ul class="pop" id="legalPop" role="tooltip"></ul></div>
   </div>
 </header>
-<main>
-  <section class="tab on" id="tab-build"></section>
-  <section class="tab" id="tab-hands"></section>
-  <section class="tab" id="tab-sw"></section>
-  <section class="tab" id="tab-format"></section>
+<main id="panes">
+  <nav class="pane-tabs" id="tabs2" role="tablist" aria-label="Right page"></nav>
+  <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Resize the pages" tabindex="0"></div>
+  <div class="slot" data-tab="build"><section class="tab" id="tab-build"></section></div>
+  <div class="slot" data-tab="hands"><section class="tab" id="tab-hands"></section></div>
+  <div class="slot" data-tab="sw"><section class="tab" id="tab-sw"></section></div>
+  <div class="slot" data-tab="format"><section class="tab" id="tab-format"></section></div>
 </main>
 <div class="toast" id="toast"></div>
 <dialog id="dlg"><form method="dialog" id="dlgBody"></form></dialog>
